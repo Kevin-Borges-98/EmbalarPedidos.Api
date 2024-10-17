@@ -1,0 +1,6 @@
+@EmbalarPedidos.Api_HostAddress = http://localhost:5094
+
+GET {{EmbalarPedidos.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
