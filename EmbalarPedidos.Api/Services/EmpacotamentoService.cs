@@ -11,9 +11,9 @@ namespace EmbalarPedidos.Api.Services
 		{
 			_caixasDisponiveis = new List<Caixa>
 			{
-				new Caixa("Caixa 1", 30, 40, 80 ),
-				new Caixa("Caixa 2", 80, 50, 40 ),
-				new Caixa("Caixa 3", 50, 80, 60 )
+				new Caixa("Caixa 1", 30, 40, 80),
+				new Caixa("Caixa 2", 80, 50, 40),
+				new Caixa("Caixa 3", 50, 80, 60)
 			};
 		}
 
@@ -22,17 +22,28 @@ namespace EmbalarPedidos.Api.Services
 		private Response EmpacotarPedido(Pedido pedido)
 		{
 			var caixasUsadas = new List<CaixaResponse>();
-
 			var produtosNaoEmpacotados = new List<Produto>();
+
+			var caixasComVolumeDisponivel = _caixasDisponiveis.ToDictionary(caixa => caixa.Caixa_Id, caixa => caixa.Volume);
 
 			foreach (var produto in pedido.Produtos)
 			{
-				var caixaEscolhida = EncontrarCaixaAdequada(produto);
+				var volumeProduto = CalcularVolume(produto.Dimensoes);
 
-				if (caixaEscolhida is not null)
+				var caixaEscolhida = caixasComVolumeDisponivel.Keys.FirstOrDefault(c =>
+					caixasComVolumeDisponivel[c] >= volumeProduto &&
+					_caixasDisponiveis.First(caixa => caixa.Caixa_Id == c).Altura >= produto.Dimensoes.Altura &&
+					_caixasDisponiveis.First(caixa => caixa.Caixa_Id == c).Largura >= produto.Dimensoes.Largura &&
+					_caixasDisponiveis.First(caixa => caixa.Caixa_Id == c).Comprimento >= produto.Dimensoes.Comprimento);
+
+				if (caixaEscolhida != null)
+				{
+					caixasComVolumeDisponivel[caixaEscolhida] -= (int)volumeProduto; // Fazendo o cast explícito para int
 					AdicionarProdutoNaCaixa(caixaEscolhida, produto, caixasUsadas);
+				}
 				else
 					produtosNaoEmpacotados.Add(produto);
+
 			}
 
 			AdicionarProdutosNaoEmpacotados(produtosNaoEmpacotados, caixasUsadas);
@@ -44,28 +55,23 @@ namespace EmbalarPedidos.Api.Services
 			};
 		}
 
-		private Caixa EncontrarCaixaAdequada(Produto produto)
+		private double CalcularVolume(Dimensao dimensoes)
 		{
-			return _caixasDisponiveis.FirstOrDefault(c =>
-				c.Altura >= produto.Dimensoes.Altura &&
-				c.Largura >= produto.Dimensoes.Largura &&
-				c.Comprimento >= produto.Dimensoes.Comprimento);
+			return dimensoes.Altura * dimensoes.Largura * dimensoes.Comprimento;
 		}
 
-		private void AdicionarProdutoNaCaixa(Caixa caixaEscolhida, Produto produto, List<CaixaResponse> caixasUsadas)
+		private void AdicionarProdutoNaCaixa(string caixaId, Produto produto, List<CaixaResponse> caixasUsadas)
 		{
-			var caixaResposta = caixasUsadas.FirstOrDefault(c => c.Caixa_Id == caixaEscolhida.Caixa_Id) ??
-								CriarNovaCaixaResponse(caixaEscolhida, caixasUsadas);
+			var caixaResposta = caixasUsadas.FirstOrDefault(c => c.Caixa_Id == caixaId) ??
+								CriarNovaCaixaResponse(caixaId, caixasUsadas);
 
 			caixaResposta.Produtos.Add(produto.Produto_Id);
 		}
 
-		private CaixaResponse CriarNovaCaixaResponse(Caixa caixaEscolhida, List<CaixaResponse> caixasUsadas)
+		private CaixaResponse CriarNovaCaixaResponse(string caixaId, List<CaixaResponse> caixasUsadas)
 		{
-			var novaCaixaResponse = new CaixaResponse(caixaEscolhida.Caixa_Id, new List<string>(),null);
-			
+			var novaCaixaResponse = new CaixaResponse(caixaId, new List<string>(), null);
 			caixasUsadas.Add(novaCaixaResponse);
-			
 			return novaCaixaResponse;
 		}
 
@@ -77,8 +83,7 @@ namespace EmbalarPedidos.Api.Services
 					null,
 					new List<string> { produto.Produto_Id },
 					"Produto não cabe em nenhuma caixa disponível.")
-					);
-
+				);
 			}
 		}
 	}
